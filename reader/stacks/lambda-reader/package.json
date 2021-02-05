@@ -1,0 +1,12 @@
+{
+  "name": "shapeshifter",
+  "version": "1.0.0",
+  "description": "Shapeshifter reader app",
+  "main": "app.js",
+  "author": "CodeDudes",
+  "license": "MIT",
+  "dependencies": {},
+  "scripts": {
+    "test": "node_modules/.bin/mocha tests/unit/"
+  }
+}

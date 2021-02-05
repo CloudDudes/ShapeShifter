@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Fargate stack
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  LocalMachineIp:
+    Type: String
+
+Resources:
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'Load balancer local access'
+      SecurityGroupIngress:
+        - CidrIp: !Sub '${LocalMachineIp}/32'
+          FromPort: 8080
+          ToPort: 8080
+          IpProtocol: 'TCP'
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: -1
+          ToPort: -1
+          IpProtocol: '-1'
+      VpcId: !Ref VpcId
+
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'SHAPESHIFTER-${TaskName}-CONTAINER-SG'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+
+Outputs:
+  LoadBalancerSecurityGroup:
+    Value: !Ref LoadBalancerSecurityGroup
+  ContainerSecurityGroup:
+    Value: !Ref ContainerSecurityGroup

@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Shapeshifter reader'
+
+Parameters:
+  LocalMachineIp:
+    Type: String
+
+Resources:
+  Network:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./stacks/network.yaml
+
+  Security:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./stacks/security.yaml
+      Parameters:
+        VpcId: !GetAtt Network.Outputs.VpcId
+        LocalMachineIp: !Ref LocalMachineIp
+
+  LoadBalancing:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./stacks/lb.yaml
+      Parameters:
+        VpcId: !GetAtt Network.Outputs.VpcId
+        LoadBalancerSecurityGroup: !GetAtt Security.Outputs.LoadBalancerSecurityGroup
+        PublicSubnetIdA: !GetAtt Network.Outputs.PublicSubnetA
+        PublicSubnetIdB: !GetAtt Network.Outputs.PublicSubnetB
+        PublicSubnetIdC: !GetAtt Network.Outputs.PublicSubnetC
+        DockerLambdaArn: !GetAtt ShapeshiferLambdaDockerReader.Arn
+
+  Fargate:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./stacks/fargate.yaml
+      Parameters:
+        VpcId: !GetAtt Network.Outputs.VpcId
+        ContainerSecurityGroup: !GetAtt Security.Outputs.ContainerSecurityGroup
+        TaskName: 'Shapeshifter'
+        Image: '294104603975.dkr.ecr.eu-west-1.amazonaws.com/shapeshifter:shapeshifter-express-docker'
+        PrivateSubnetIdA: !GetAtt Network.Outputs.PrivateSubnetA
+        PrivateSubnetIdB: !GetAtt Network.Outputs.PrivateSubnetB
+        PrivateSubnetIdC: !GetAtt Network.Outputs.PrivateSubnetC
+        EcsTargetGroup: !GetAtt LoadBalancing.Outputs.EcsTargetGroup
+
+  ShapeshiferLambdaDockerReader:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ReservedConcurrentExecutions: 10
+      MemorySize: 128
+      Timeout: 3
+    Metadata:
+      DockerTag: shapeshifter-lambda
+      DockerContext: ./stacks/lambda-reader
+      Dockerfile: Dockerfile
+
+  ShapeshiferLambdaReader:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./stacks/lambda-reader/
+      Handler: app.lambdaHandler
+      Runtime: nodejs14.x
+      ReservedConcurrentExecutions: 10
+      MemorySize: 128
+      Timeout: 3
+
+#Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+#  HelloWorldApi:
+#    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+#    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+#  LambdaReaderFunction:
+#    Description: "Lambda reader function arn"
+#    Value: !GetAtt LambdaReaderFunction.Arn
+#  LambdaReaderFunctionIamRole:
+#    Description: "Lambda reader IAM role"
+#    Value: !GetAtt LambdaReaderFunctionRole.Arn
